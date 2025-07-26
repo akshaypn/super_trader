@@ -1,1 +1,1 @@
-# super_trader
+# Super Trader Portfolio Coach
