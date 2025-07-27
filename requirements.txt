@@ -4,6 +4,7 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 flask
+flask-cors
 openai
 pyyaml
 slack-sdk
@@ -12,7 +13,6 @@ pandas
 numpy
 scipy
 jinja2
-apache-airflow
 pydantic
 python-dateutil
 feedparser

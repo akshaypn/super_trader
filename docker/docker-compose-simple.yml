@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: portfolio_coach
+      POSTGRES_USER: portfolio_user
+      POSTGRES_PASSWORD: portfolio_password
+    ports:
+      - "9853:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deployment/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portfolio_user -d portfolio_coach"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  portfolio_web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.simple
+    environment:
+      - DATABASE_URL=postgresql://portfolio_user:portfolio_password@postgres:5432/portfolio_coach
+      - UPSTOX_ACCESS_TOKEN=${UPSTOX_ACCESS_TOKEN:-test-token}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-test-key}
+    ports:
+      - "9854:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../logs:/app/logs
+    command: ["python", "run.py", "--mode", "web"]
+
+  portfolio_frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9855:80"
+    depends_on:
+      portfolio_web:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres_data: 

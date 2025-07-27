@@ -4,46 +4,59 @@ FROM python:3.11-slim
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV DEBIAN_FRONTEND=noninteractive
+ENV AIRFLOW_HOME=/opt/airflow
+ENV AIRFLOW__CORE__EXECUTOR=LocalExecutor
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
-        build-essential \
-        curl \
-        git \
-        postgresql-client \
+RUN apt-get update && apt-get install -y \
+    curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Create application directory
+# Create airflow user
+RUN useradd -ms /bin/bash -d ${AIRFLOW_HOME} airflow
+
+# Set working directory
 WORKDIR /app
 
-# Create non-root user with home directory
-RUN groupadd -r portfolio && useradd -r -g portfolio -m portfolio
-
-# Copy requirements first for better Docker layer caching
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
-# Create directories for logs and data
-RUN mkdir -p /app/logs /app/data \
-    && chown -R portfolio:portfolio /app
+# Create necessary directories
+RUN mkdir -p ${AIRFLOW_HOME}/dags ${AIRFLOW_HOME}/logs ${AIRFLOW_HOME}/plugins
 
-# Switch to non-root user
-USER portfolio
+# Set permissions
+RUN chown -R airflow: ${AIRFLOW_HOME}
+RUN chown -R airflow: /app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import sys; sys.path.insert(0, '/app/src'); from config import Config; print('Health check passed')" || exit 1
+# Switch to airflow user
+USER airflow
 
-# Expose port for web interface
-EXPOSE 5000
+# Install Airflow with specific version and compatible pendulum
+RUN pip install pendulum==2.1.2 apache-airflow==2.6.3
+
+# Set environment variables for Airflow
+ENV AIRFLOW_HOME=/opt/airflow
+ENV PATH="/opt/airflow/.local/bin:$PATH"
+
+# Initialize Airflow database (skip for now, will be done at runtime)
+# RUN airflow db init
+
+# Create admin user (skip for now, will be done at runtime)
+# RUN airflow users create \
+#     --username admin \
+#     --firstname Admin \
+#     --lastname User \
+#     --role Admin \
+#     --email admin@example.com \
+#     --password admin
+
+# Expose ports
+EXPOSE 5000 8080
 
 # Default command
 CMD ["python", "run.py", "--mode", "runner"]
